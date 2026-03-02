@@ -7,3 +7,6 @@ scikit-learn
 feature-engine
 ipykernel
 shap
+openpyxl
+trimesh
+shapely

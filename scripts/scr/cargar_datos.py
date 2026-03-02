@@ -17,7 +17,7 @@ def cargar_datos(needed_sheet:str) -> pd.DataFrame:
                       DataFrame if the file path or sheet cannot be loaded.
     """
     
-    load_dotenv(dotenv_path='/Users/juanv/Documents/Github/Despliegue-modelo-ANN-Turbinas-Hidraulicas/.env') # Cambia la ruta de tu .env
+    load_dotenv(dotenv_path='/home/asus_juan/Documents/GitHub/Despliegue-modelo-ANN-Turbinas-Hidraulicas/.env') # Cambia la ruta de tu .env
 
     # Extraemos la base de datos del .env
     Data = os.getenv('DB_USER')
@@ -26,14 +26,14 @@ def cargar_datos(needed_sheet:str) -> pd.DataFrame:
     try:
         # Creamos el dataframe 
         if Data and needed_sheet is not None:
-            df = pd.read_excel(Data, sheet_name=needed_sheet)
-            print(f'Cargados correctamente {len(df)} datos')
+            df_ = pd.read_excel(Data, sheet_name=needed_sheet)
+            print(f'Cargados correctamente {len(df_)} datos')
         else:
             print('No existe el path')
     except Exception as e:
         print(f'No existe la Sheet debes escribir el formato completo {e}')
     
-    return df
+    return df_
 
 if __name__ == "__main__":
     df = cargar_datos('30Hz_P1')

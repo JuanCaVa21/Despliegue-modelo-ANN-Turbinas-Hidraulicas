@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, OrdinalEncoder
 from sklearn.pipeline import Pipeline as Pipe
+from sklearn.model_selection import train_test_split
 
 from feature_engine.imputation import MeanMedianImputer, CategoricalImputer
 from feature_engine.outliers import Winsorizer
@@ -11,76 +12,100 @@ from feature_engine.selection import DropFeatures
 
 df = cargar_datos(needed_sheet='30Hz_P1')
 
-def fix_dataframe(df:pd.DataFrame) -> pd.DataFrame:
-    """
-    Cleans and reformats the raw turbine experimental data for feature engineering.
 
-    This function performs a sequential cleanup process:
-    1. Removes completely empty rows.
-    2. Sets the first row as column headers and resets the index.
-    3. Drops redundant or constant columns ('RPM', 'Power').
-    4. Normalizes physical measurements (RPM, Power, Angle, Torque) to absolute values 
-       to ensure physical consistency.
-    5. Casts categorical/object columns to appropriate numeric (float/int) and 
-       datetime dtypes for model compatibility.
+def fix_dataframe(df:pd.DataFrame, num_feats:list | None=None, negative_feats:list | None=None, date_feats:list | None=None) -> pd.DataFrame:
+    """
+    Cleans and reformats the raw turbine experimental DataFrame for feature engineering.
+
+    Executes the following sequential steps:
+        1. Removes completely empty rows.
+        2. Promotes the first row to column headers and resets the index.
+        3. Converts specified physical measurement columns to absolute values
+           (e.g., RPM, Power, Angle, Torque) to ensure physical consistency.
+        4. Casts specified columns to numeric type (float/int).
+        5. Casts specified columns to datetime type.
 
     Args:
-        df (pd.DataFrame): The raw input DataFrame containing sensor readings and 
+        df (pd.DataFrame): Raw input DataFrame containing sensor readings and
             turbine operational data.
+        num_feats (list | None): Column names to cast to numeric type.
+            Example: ['RPM', 'Torque', 'Power', 'Angle']
+        negative_feats (list | None): Column names to transform to absolute value.
+            Example: ['RPM', 'Torque']
+        date_feats (list | None): Column names to cast to datetime type.
+            Example: ['Timestamp', 'Date']
 
     Returns:
-        pd.DataFrame: A cleaned DataFrame with corrected headers, absolute physical 
-            values, and optimized data types.
+        pd.DataFrame: Cleaned DataFrame with corrected headers, absolute physical
+            values, and optimized data types ready for feature engineering.
+
+    Raises:
+        KeyError: If any column in `num_feats`, `negative_feats`, or `date_feats`
+            does not exist in the DataFrame after header promotion.
+        ValueError: If values in `date_feats` cannot be parsed as datetime.
     """
 
-    df.dropna(how='all', inplace=True) # Eliminamos filas nulas
+    # Drop null values
+    df.dropna(how='all', inplace=True)
 
-    # Renombramos columnas
-    df.columns = df.iloc[0] 
+    # Rename columns with first row
+    df.columns = df.iloc[0]
     df = df[1:].reset_index(drop=True)
 
-    # Eliminamos columnas innecesarias
-    df.drop(columns=['RPM', 'Power'], inplace=True)
+    # Variables negatives to positive
+    for j in negative_feats:
+        df[j] = df[j].abs()
 
-    # Valores absolutos de las columnas
-    df['RPM_P'] = df['RPM_P'].abs()
-    df['Power [Watts]'] = df['Power [Watts]'].abs()
-    df['Angle'] = df['Angle'].abs()
-    df['Torque [Nm]'] = df['Torque [Nm]'].abs()
+    # Conversion of numeric variables
+    for i in num_feats:
+        df[i] = pd.to_numeric(df[i])
 
-    # Convertimos a Numericos
-    df['Sample Number'] = pd.to_numeric(df['Sample Number'])
-    df['Tracking Value'] = pd.to_numeric(df['Tracking Value'])
-    df['Torque [Nm]'] = pd.to_numeric(df['Torque [Nm]'])
-    df['Angle'] = pd.to_numeric(df['Angle'])
-    df['RPM_P'] = pd.to_numeric(df['RPM_P'])
-    df['Power [Watts]'] = pd.to_numeric(df['Power [Watts]'])
-
-    #Convertimos a Fechas y tiempo
-    df['Date'] = pd.to_datetime(df['Date'])
+    # Conversion of date features
+    df[date_feats] = pd.to_datetime(df[date_feats])
 
     return df
 
-def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:list | None=None, drop_var:list | None=None, quantile:float = 0.05):
-    """
-    Feature Engineering of dataset
 
-    This function performs a pipeline preprocess:
-    1. Columns transformer of numerical, categorical and ordinal features.
-    2. Drops innecesary features.
-    3. Inputation of null numeric features to mean or median.
-    4. Inputation of null categoric features to most frequent or mode .
-    5. Mangement of outliers over wished quantile.
+def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:list | None=None, drop_var:list | None=None, quantile:float=0.05):
+    """
+    Builds and returns a full preprocessing Pipeline for feature engineering.
+
+    The pipeline executes the following steps in order:
+        1. DropFeatures: Removes irrelevant or redundant columns defined in `drop_var`.
+        2. MeanMedianImputer: Imputes missing values in numeric variables using the median.
+        3. CategoricalImputer: Imputes missing values in categorical variables using the mode.
+        4. Winsorizer: Caps outliers at the `quantile` percentile on the right tail.
+        5. ColumnTransformer:
+            - StandardScaler applied to numeric variables.
+            - OneHotEncoder (drop='first') applied to nominal categorical variables.
+            - OrdinalEncoder applied to ordinal categorical variables.
+
+    Warning:
+        `drop_var` must not contain columns referenced in `var_num`, `var_cat`,
+        or `var_ordi`. Doing so will cause downstream pipeline steps to raise a KeyError
+        since those columns will no longer exist when the imputers or transformers run.
 
     Args:
-        var_cats (list): The list of categorical features -> ej... ['id', 'Torque']
-        var_num  (list): The list of numerical features -> ej... ['sex', 'type_of_worker']
-        var_ordi (list): The list of Ordinal categorical features -> ej... ['education', 'age']
-        drop_var (list): The list of features that you wants to drop -> ej... ['date', 'id_client']
-        quantile (float): The number of percentil -> ej... 0.05(It´s default)
+        var_cat (list | None): Nominal categorical feature names for OneHotEncoding.
+            Example: ['failure_type', 'operation_mode']
+        var_num (list | None): Continuous numeric feature names for scaling and imputation.
+            Example: ['RPM', 'Torque', 'Power']
+        var_ordi (list | None): Ordinal categorical feature names for OrdinalEncoding.
+            Example: ['load_level', 'shift']
+        drop_var (list | None): Feature names to drop before any transformation.
+            Example: ['test_id', 'Timestamp']
+        quantile (float): Percentile threshold for the Winsorizer right-tail capping.
+            Must be between 0.0 and 0.5. Default: 0.05 (caps at the 95th percentile).
 
     Returns:
-        Pipeline: A Pipeline that preprocess the data
+        Pipeline: A fitted-ready sklearn Pipeline instance. Call `.fit(X_train)` to
+            train the transformations and `.transform(X)` to apply them.
+
+    Raises:
+        ValueError: If `var_num`, `var_cat`, or `var_ordi` are None when the
+            pipeline's `.fit()` method is called.
+        KeyError: If any referenced column does not exist in the DataFrame
+            at pipeline fit time.
     """
 
     preprocessor_sk = ColumnTransformer(
@@ -93,17 +118,74 @@ def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:
     )
 
     Pipeline = Pipe(
-        steps= [
-            ('drop_features', DropFeatures(features_to_drop = drop_var)),
-            ('imputer_numeric', MeanMedianImputer(imputation_method='median', variables= var_num)),
-            ('imputer_categorical', CategoricalImputer(imputation_method='frequent', variables= var_cat + var_num)),
-            ('outliers', Winsorizer(capping_method='quantiles', tail='right', fold=quantile, variables= var_num)),
+        steps=[
+            ('drop_features', DropFeatures(features_to_drop=drop_var)),
+            ('imputer_numeric', MeanMedianImputer(imputation_method='median', variables=var_num)),
+            ('imputer_categorical', CategoricalImputer(imputation_method='frequent', variables=var_cat + var_ordi)),  # Fix: removed var_num and agregate var_ordi
+            ('outliers', Winsorizer(capping_method='quantiles', tail='right', fold=quantile, variables=var_num)),
             ('preprocessor', preprocessor_sk)
         ]
     )
 
-    return Pipe
+    return Pipeline  # Fix: was returning Pipe (the class) instead of Pipeline (the instance)
 
-def split_to_model(df:pd.DataFrame, target:str, test_size:float = 0.2, random_state:int = 42):
 
-    df = df.dropna(subset=[target])
+def split_to_model(df:pd.DataFrame, target:str, test_size:float | None=0.2, random_state:int | None=42, stratify:bool=True):
+    """
+    Splits the DataFrame into train and test sets for model training.
+
+    Validates that the target column exists, drops rows where the target is null,
+    separates features (X) from the target (y), and performs a stratified or
+    non-stratified train/test split.
+
+    Warning:
+        Stratification (`stratify=True`) is only valid for classification tasks
+        where the target variable is discrete. For regression tasks with continuous
+        targets, set `stratify=False` to avoid a ValueError raised by sklearn.
+
+    Args:
+        df (pd.DataFrame): Preprocessed DataFrame ready for modeling.
+        target (str | None): Name of the target column to predict.
+            Raises ValueError if None or not found in `df`.
+        test_size (float | None): Proportion of the dataset to allocate to the test set.
+            Must be between 0.0 and 1.0. Default: 0.2 (20%).
+        random_state (int | None): Random seed for reproducibility. Default: 42.
+        stratify (bool): Whether to stratify the split by the target distribution.
+            Set to False for regression tasks with continuous targets. Default: True.
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+            A four-element tuple (X_train, X_test, y_train, y_test) where:
+            - X_train (pd.DataFrame): Training feature set.
+            - X_test  (pd.DataFrame): Test feature set.
+            - y_train (pd.Series): Training target values.
+            - y_test  (pd.Series): Test target values.
+
+    Raises:
+        ValueError: If `target` is None or not found as a column in `df`.
+        ValueError: If `stratify=True` and the target variable is continuous,
+            as sklearn cannot stratify splits over non-discrete values.
+    """
+
+    if target is None:
+        raise ValueError("A target column name must be provided.")
+
+    if target in df.columns:
+        df = df.dropna(subset=[target])
+        X = df.drop(columns=[target]).copy()
+        y = df[target]
+        print(f'Variables successfully separated — X: {len(X)} rows, y: {len(y)} rows')
+    else:
+        raise ValueError(f'Column ({target}) was not found in the DataFrame.')
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=y if stratify else None  # Fix: made stratify optional for regression tasks
+    )
+
+    print(f'Train split size: {len(X_train)}')
+    print(f'Test split size:  {len(X_test)}')
+
+    return X_train, X_test, y_train, y_test
