@@ -10,3 +10,5 @@ shap
 openpyxl
 trimesh
 shapely
+gmsh
+torch torchvision
