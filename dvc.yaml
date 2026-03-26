@@ -1,0 +1,19 @@
+stages:
+  carga_y_limpieza:
+    # El comando que se va a ejecutar
+    cmd: python scripts/scr/cargar_datos.py
+    # Dependencias: Si el excel o el script cambian, DVC sabrá que debe volver a ejecutar esta etapa
+    deps:
+      - database/AFMP_Pruebas_curvas.xlsx
+      - scripts/scr/cargar_datos.py
+    # Salidas: El archivo que genera tu script (asegúrate de que cargar_datos.py guarde este archivo)
+    outs:
+      - database/datos_limpios.csv
+
+  feature_engineering:
+    cmd: python scripts/scr/ft_engineering.py
+    deps:
+      - database/datos_limpios.csv
+      - scripts/scr/ft_engineering.py
+    outs:
+      - database/datos_features.csv

@@ -1,0 +1,14 @@
+pandas
+numpy
+matplotlib
+seaborn
+pathlib
+scikit-learn
+feature-engine
+ipykernel
+shap
+openpyxl
+trimesh
+shapely
+gmsh
+torch torchvision

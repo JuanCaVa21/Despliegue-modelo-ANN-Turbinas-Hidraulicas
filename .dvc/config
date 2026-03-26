@@ -1,0 +1,4 @@
+[core]
+    remote = my_remote
+['remote "my_remote"']
+    url = /Users/juanv/Documents/GitHub/Despliegue-modelo-ANN-Turbinas-Hidraulicas/database
