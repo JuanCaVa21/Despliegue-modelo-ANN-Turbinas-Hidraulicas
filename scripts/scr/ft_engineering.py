@@ -48,25 +48,25 @@ def fix_dataframe(df:pd.DataFrame, num_feats:list | None=None, negative_feats:li
     # Drop null values
     df.dropna(how='all', inplace=True)
 
-    # Rename columns with first row
-    df.columns = df.iloc[0]
-    df = df[1:].reset_index(drop=True)
-
     # Variables negatives to positive
-    for j in negative_feats:
-        df[j] = df[j].abs()
+    if negative_feats is not None:
+        for j in negative_feats:
+            df[j] = df[j].abs()
 
     # Conversion of numeric variables
-    for i in num_feats:
-        df[i] = pd.to_numeric(df[i])
+    if num_feats is not None:
+        for i in num_feats:
+            df[i] = pd.to_numeric(df[i], errors='coerce')  # Coerce non-numeric to NaN for later imputation
 
     # Conversion of date features
-    df[date_feats] = pd.to_datetime(df[date_feats])
+    if date_feats is not None:
+        for i in date_feats:
+            df[date_feats] = pd.to_datetime(df[date_feats])
 
     return df
 
 
-def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:list | None=None, drop_var:list | None=None, quantile:float=0.05):
+def ft_engineering(var_num:list | None=None, drop_var:list | None=None, quantile:float=0.05):
     """
     Builds and returns a full preprocessing Pipeline for feature engineering.
 
@@ -110,9 +110,7 @@ def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:
 
     preprocessor_sk = ColumnTransformer(
         transformers=[
-            ('numerical', StandardScaler(), var_num),
-            ('categorical', OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop='first'), var_cat),
-            ('ordinal', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), var_ordi)
+            ('numerical', StandardScaler(), var_num)
         ],
         remainder='passthrough'
     )
@@ -121,7 +119,6 @@ def ft_engineering(var_cat:list | None=None, var_num:list | None=None, var_ordi:
         steps=[
             ('drop_features', DropFeatures(features_to_drop=drop_var)),
             ('imputer_numeric', MeanMedianImputer(imputation_method='median', variables=var_num)),
-            ('imputer_categorical', CategoricalImputer(imputation_method='frequent', variables=var_cat + var_ordi)),  # Fix: removed var_num and agregate var_ordi
             ('outliers', Winsorizer(capping_method='quantiles', tail='right', fold=quantile, variables=var_num)),
             ('preprocessor', preprocessor_sk)
         ]

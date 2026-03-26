@@ -208,3 +208,15 @@ __marimo__/
 *.xlsx
 *.cmake
 *.msh
+
+
+*.yaml
+*.yml
+
+venv/
+/.ANN_Env/
+
+
+database/data_scr/.~lock.AFMP_Pruebas curvas.xlsx\#
+database/data_scr/AFMP_Pruebas curvas_Sheet1.csv
+scripts/scr/__init__.py
