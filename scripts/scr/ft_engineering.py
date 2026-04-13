@@ -1,8 +1,7 @@
-from cargar_datos import cargar_datos
 import pandas as pd
 import numpy as np
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from sklearn.pipeline import Pipeline as Pipe
 from sklearn.model_selection import train_test_split
 
@@ -10,121 +9,54 @@ from feature_engine.imputation import MeanMedianImputer, CategoricalImputer
 from feature_engine.outliers import Winsorizer
 from feature_engine.selection import DropFeatures
 
-df = cargar_datos(needed_sheet='30Hz_P1')
 
-
-def fix_dataframe(df:pd.DataFrame, num_feats:list | None=None, negative_feats:list | None=None, date_feats:list | None=None) -> pd.DataFrame:
+def ft_engineering(var_num:list | None=None, var_cat:list | None = None, drop_var:list | None=None, quantile:float=0.05):
     """
-    Cleans and reformats the raw turbine experimental DataFrame for feature engineering.
+    Construye y retorna un Pipeline de preprocesamiento para Feature Engineering.
 
-    Executes the following sequential steps:
-        1. Removes completely empty rows.
-        2. Promotes the first row to column headers and resets the index.
-        3. Converts specified physical measurement columns to absolute values
-           (e.g., RPM, Power, Angle, Torque) to ensure physical consistency.
-        4. Casts specified columns to numeric type (float/int).
-        5. Casts specified columns to datetime type.
+    Cambios basados en EDA:
+        - Reemplazado StandardScaler por MinMaxScaler (debido a distribuciones bimodales).
+        - OHE configurado para evitar la trampa de variables ficticias (drop='first').
+        - Los pasos se agregan dinámicamente solo si las listas de variables no están vacías.
 
     Args:
-        df (pd.DataFrame): Raw input DataFrame containing sensor readings and
-            turbine operational data.
-        num_feats (list | None): Column names to cast to numeric type.
-            Example: ['RPM', 'Torque', 'Power', 'Angle']
-        negative_feats (list | None): Column names to transform to absolute value.
-            Example: ['RPM', 'Torque']
-        date_feats (list | None): Column names to cast to datetime type.
-            Example: ['Timestamp', 'Date']
+        var_cat (list | None): Variables categóricas nominales para OneHotEncoding (Ej. 'ID_Experimento', 'Frecuencia').
+        var_num (list | None): Variables numéricas continuas para MinMaxScaler (Ej. 'Torque', 'RPM').
+        drop_var (list | None): Variables altamente correlacionadas a eliminar (Ej. 'Presion (PsiD)', 'Caudal').
+        quantile (float): Umbral para el Winsorizer en la cola derecha. Default: 0.05.
 
     Returns:
-        pd.DataFrame: Cleaned DataFrame with corrected headers, absolute physical
-            values, and optimized data types ready for feature engineering.
-
-    Raises:
-        KeyError: If any column in `num_feats`, `negative_feats`, or `date_feats`
-            does not exist in the DataFrame after header promotion.
-        ValueError: If values in `date_feats` cannot be parsed as datetime.
+        Pipeline: Instancia de sklearn Pipeline lista para hacer `.fit(X_train)`.
     """
 
-    # Drop null values
-    df.dropna(how='all', inplace=True)
-
-    # Variables negatives to positive
-    if negative_feats is not None:
-        for j in negative_feats:
-            df[j] = df[j].abs()
-
-    # Conversion of numeric variables
-    if num_feats is not None:
-        for i in num_feats:
-            df[i] = pd.to_numeric(df[i], errors='coerce')  # Coerce non-numeric to NaN for later imputation
-
-    # Conversion of date features
-    if date_feats is not None:
-        for i in date_feats:
-            df[date_feats] = pd.to_datetime(df[date_feats])
-
-    return df
-
-
-def ft_engineering(var_num:list | None=None, drop_var:list | None=None, quantile:float=0.05):
-    """
-    Builds and returns a full preprocessing Pipeline for feature engineering.
-
-    The pipeline executes the following steps in order:
-        1. DropFeatures: Removes irrelevant or redundant columns defined in `drop_var`.
-        2. MeanMedianImputer: Imputes missing values in numeric variables using the median.
-        3. CategoricalImputer: Imputes missing values in categorical variables using the mode.
-        4. Winsorizer: Caps outliers at the `quantile` percentile on the right tail.
-        5. ColumnTransformer:
-            - StandardScaler applied to numeric variables.
-            - OneHotEncoder (drop='first') applied to nominal categorical variables.
-            - OrdinalEncoder applied to ordinal categorical variables.
-
-    Warning:
-        `drop_var` must not contain columns referenced in `var_num`, `var_cat`,
-        or `var_ordi`. Doing so will cause downstream pipeline steps to raise a KeyError
-        since those columns will no longer exist when the imputers or transformers run.
-
-    Args:
-        var_cat (list | None): Nominal categorical feature names for OneHotEncoding.
-            Example: ['failure_type', 'operation_mode']
-        var_num (list | None): Continuous numeric feature names for scaling and imputation.
-            Example: ['RPM', 'Torque', 'Power']
-        var_ordi (list | None): Ordinal categorical feature names for OrdinalEncoding.
-            Example: ['load_level', 'shift']
-        drop_var (list | None): Feature names to drop before any transformation.
-            Example: ['test_id', 'Timestamp']
-        quantile (float): Percentile threshold for the Winsorizer right-tail capping.
-            Must be between 0.0 and 0.5. Default: 0.05 (caps at the 95th percentile).
-
-    Returns:
-        Pipeline: A fitted-ready sklearn Pipeline instance. Call `.fit(X_train)` to
-            train the transformations and `.transform(X)` to apply them.
-
-    Raises:
-        ValueError: If `var_num`, `var_cat`, or `var_ordi` are None when the
-            pipeline's `.fit()` method is called.
-        KeyError: If any referenced column does not exist in the DataFrame
-            at pipeline fit time.
-    """
-
+    # Configurar el preprocesador de Sklearn
+    # MinMaxScaler es mejor para Redes Neuronales y datos No-Normales
     preprocessor_sk = ColumnTransformer(
         transformers=[
-            ('numerical', StandardScaler(), var_num)
+            ('numerical', MinMaxScaler(), var_num if var_num else []),
+            ('categorical', OneHotEncoder(handle_unknown='ignore', sparse_output=False), var_cat if var_cat else [])
         ],
         remainder='passthrough'
     )
 
-    Pipeline = Pipe(
-        steps=[
-            ('drop_features', DropFeatures(features_to_drop=drop_var)),
-            ('imputer_numeric', MeanMedianImputer(imputation_method='median', variables=var_num)),
-            ('outliers', Winsorizer(capping_method='quantiles', tail='right', fold=quantile, variables=var_num)),
-            ('preprocessor', preprocessor_sk)
-        ]
-    )
+    # Construir los pasos del Pipeline de forma dinámica
+    steps = []
+    
+    if drop_var:
+        steps.append(('drop_features', DropFeatures(features_to_drop=drop_var)))
+        
+    if var_num:
+        steps.append(('imputer_numeric', MeanMedianImputer(imputation_method='median', variables=var_num)))
+        steps.append(('outliers', Winsorizer(capping_method='quantiles', tail='right', fold=quantile, variables=var_num)))
+        
+    if var_cat:
+        steps.append(('imputer_categorical', CategoricalImputer(imputation_method='frequent', variables=var_cat)))
+        
+    steps.append(('preprocessor', preprocessor_sk))
 
-    return Pipeline  # Fix: was returning Pipe (the class) instead of Pipeline (the instance)
+    Pipeline = Pipe(steps=steps)
+
+    return Pipeline
 
 
 def split_to_model(df:pd.DataFrame, target:str, test_size:float | None=0.2, random_state:int | None=42, stratify:bool=True):
@@ -169,7 +101,7 @@ def split_to_model(df:pd.DataFrame, target:str, test_size:float | None=0.2, rand
 
     if target in df.columns:
         df = df.dropna(subset=[target])
-        X = df.drop(columns=[target]).copy()
+        X = df.drop(columns=target).copy()
         y = df[target]
         print(f'Variables successfully separated — X: {len(X)} rows, y: {len(y)} rows')
     else:
