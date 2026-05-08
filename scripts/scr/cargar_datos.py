@@ -6,6 +6,28 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+def cargar_datos_from_csv(csv_path:str) -> pd.DataFrame:
+    """
+    Carga datos desde un csv 
+
+    Verifica la existencia del path y de la ruta luego
+    extrae los datos y los convierte en un dataframe de pandas
+
+    Args:
+        csv_path (str): Ruta a el CSV que se quiere analizar 
+
+    Returns:
+        pd.DataFrame: Un dataframe con los datos extraidos
+    """
+
+    try:
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+        print(f"Cargados {len(df)}")
+        return df
+    except Exception as e:
+        print(f"Error en la carga {e}")
+
 def cargar_datos_from_excel(excel_path:str, sheet_name:str) -> pd.DataFrame:
     """
     Carga datos desde una hoja específica de un archivo Excel.

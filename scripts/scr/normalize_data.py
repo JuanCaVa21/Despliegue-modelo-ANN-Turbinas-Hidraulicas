@@ -7,17 +7,17 @@ BASE = "/home/juan21/Documentos/GitHub/Despliegue-modelo-ANN-Turbinas-Hidraulica
 # Paths con los XLS que arroja el sensor 
 paths = {
     f"{BASE}/PAT_30Hz_P1.XLS": 'df_30_P1',
-    #f"{BASE}/PAT_30Hz_P2.XLS": 'df_30_P2',
-    #f"{BASE}/PAT_30Hz_P3.XLS": 'df_30_P3',
-    #f"{BASE}/PAT_40Hz_P1.XLS": 'df_40_P1',
-    #f"{BASE}/PAT_40Hz_P2.XLS": 'df_40_P2',
-    #f"{BASE}/PAT_40Hz_P3.XLS": 'df_40_P3',
-    #f"{BASE}/PAT_50Hz_P1.XLS": 'df_50_P1',
-    #f"{BASE}/PAT_50Hz_P2.XLS": 'df_50_P2',
-    #f"{BASE}/PAT_50Hz_P3.XLS": 'df_50_P3',
-    #f"{BASE}/PAT_60Hz_P1.XLS": 'df_60_P1',
-    #f"{BASE}/PAT_60Hz_P2.XLS": 'df_60_P2',
-    #f"{BASE}/PAT_60Hz_P3.XLS": 'df_60_P3',
+    f"{BASE}/PAT_30Hz_P2.XLS": 'df_30_P2',
+    f"{BASE}/PAT_30Hz_P3.XLS": 'df_30_P3',
+    f"{BASE}/PAT_40Hz_P1.XLS": 'df_40_P1',
+    f"{BASE}/PAT_40Hz_P2.XLS": 'df_40_P2',
+    f"{BASE}/PAT_40Hz_P3.XLS": 'df_40_P3',
+    f"{BASE}/PAT_50Hz_P1.XLS": 'df_50_P1',
+    f"{BASE}/PAT_50Hz_P2.XLS": 'df_50_P2',
+    f"{BASE}/PAT_50Hz_P3.XLS": 'df_50_P3',
+    f"{BASE}/PAT_60Hz_P1.XLS": 'df_60_P1',
+    f"{BASE}/PAT_60Hz_P2.XLS": 'df_60_P2',
+    f"{BASE}/PAT_60Hz_P3.XLS": 'df_60_P3',
 }
 
 # Paths donde estan los datos que enlanzan las RPM con caudal
@@ -32,17 +32,17 @@ path_models = {
 # Key: data_path  →  Value: (model_path, sheet) que existe en model_registry.
 data_to_model = {
     f"{BASE}/PAT_30Hz_P1.XLS": (f"{BASE}/math_models/30 Hz.xlsx", "30 HZ Prueba 1"),
-    #f"{BASE}/PAT_30Hz_P2.XLS": (f"{BASE}/math_models/30 Hz.xlsx", "30 HZ Prueba 2"),
-    #f"{BASE}/PAT_30Hz_P3.XLS": (f"{BASE}/math_models/30 Hz.xlsx", "30 HZ Prueba 3"),
-    #f"{BASE}/PAT_40Hz_P1.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 1"),
-    #f"{BASE}/PAT_40Hz_P2.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 2"),
-    #f"{BASE}/PAT_40Hz_P3.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 3"),
-    #f"{BASE}/PAT_50Hz_P1.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 1"),
-    #f"{BASE}/PAT_50Hz_P2.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 2"),
-    #f"{BASE}/PAT_50Hz_P3.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 3"),
-    #f"{BASE}/PAT_60Hz_P1.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 1"),
-    #f"{BASE}/PAT_60Hz_P2.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 2"),
-    #f"{BASE}/PAT_60Hz_P3.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 3"),
+    f"{BASE}/PAT_30Hz_P2.XLS": (f"{BASE}/math_models/30 Hz.xlsx", "30 HZ Prueba 2"),
+    f"{BASE}/PAT_30Hz_P3.XLS": (f"{BASE}/math_models/30 Hz.xlsx", "30 HZ Prueba 3"),
+    f"{BASE}/PAT_40Hz_P1.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 1"),
+    f"{BASE}/PAT_40Hz_P2.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 2"),
+    f"{BASE}/PAT_40Hz_P3.XLS": (f"{BASE}/math_models/40 Hz.xlsx", "40 HZ Prueba 3"),
+    f"{BASE}/PAT_50Hz_P1.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 1"),
+    f"{BASE}/PAT_50Hz_P2.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 2"),
+    f"{BASE}/PAT_50Hz_P3.XLS": (f"{BASE}/math_models/50 Hz.xlsx", "50 HZ Prueba 3"),
+    f"{BASE}/PAT_60Hz_P1.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 1"),
+    f"{BASE}/PAT_60Hz_P2.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 2"),
+    f"{BASE}/PAT_60Hz_P3.XLS": (f"{BASE}/math_models/60 Hz.xlsx", "60 HZ Prueba 3"),
 }
 
 dataframes = {}
@@ -78,22 +78,24 @@ for data_path, df_name in paths.items():
     df = pd.read_excel(data_path) 
     df.columns = [clean_col(c) for c in df.columns]
 
+    # Extraer frecuencia del nombre del archivo (ej. PAT_30Hz_P1.XLS → 30)
+    freq_match = re.search(r'(\d+)Hz', data_path)
+    freq = int(freq_match.group(1)) if freq_match else 0
+
     # Para poder trackear todas las variables
     df = df.rename(columns={
         'Tracking Value': 'Torque',
         'Sample Number': 'EXP_ID',
-        'Time Elapsed': 'Tiempo_Ejecucion',
     })
 
+    # Construir EXP_ID como texto: ej. "01_30_HZ", "02_30_HZ", ...
+    df['EXP_ID'] = df['EXP_ID'].apply(lambda x: f"{int(x)+1:02d}_{freq}_HZ")
+
     # Arreglamos tipos de variables y ademas modificamos valores negaticos y kW por W
-    df['Tiempo_Ejecucion'] = pd.to_timedelta(df['Tiempo_Ejecucion'].astype(str))
     df['RPM'] = df['RPM'] * -1
     df['Torque'] = df['Torque'] * -1
     df['Power'] = df['Power'].abs() * 1000
-
-    # Extraer frecuencia del nombre del archivo (ej. PAT_30Hz_P1.XLS → 30)
-    freq_match = re.search(r'(\d+)Hz', data_path)
-    df['Frecuencia'] = int(freq_match.group(1)) if freq_match else None
+    df['Frecuencia'] = freq
 
     # Calcular Caudal aplicando el polinomio de la prueba que corresponde a este archivo.
     model_key = data_to_model.get(data_path)
@@ -110,6 +112,11 @@ output_path = f"{BASE}/../processed/turbina_exp.csv"
 
 # Concatenamos y guardamos el csv
 combined = pd.concat(dataframes.values(), ignore_index=True)
-combined.to_csv(output_path, index=False)
+
+# Guardamos solamente las variables que nos interesan
+cols = ['EXP_ID', 'Torque', 'RPM', 'Power', 'Frecuencia', 'Caudal']
+
+# Guardamos todo en un CSV para que sea mas facil mandarlo al modelo y manejar los datos
+combined[cols].to_csv(output_path, index=False)
 
 print(f"CSV guardado en: {output_path}")

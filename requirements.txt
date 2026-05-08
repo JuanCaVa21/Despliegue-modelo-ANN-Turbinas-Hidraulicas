@@ -1,14 +1,31 @@
+# Manejo de datos
 pandas
 numpy
+sidetable
+
+# Visualizaciones
 matplotlib
 seaborn
+ptitprince
+
+# Rutas y enrutamientos
+sys
+os
 pathlib
+psycopg2-binary
+
+# Feature-Engineering 
 scikit-learn
 feature-engine
+
+# Kernel de Enviorioments
 ipykernel
+
+# Ingeneria de Mallas y de LHS
 shap
-openpyxl
 trimesh
 shapely
 gmsh
-torch torchvision
+
+# Dependencias
+openpyxl
